@@ -2,31 +2,46 @@
 library(tidyverse)
 library(lubridate)
 library(extrafont)
-library(car)
-library(broom)
-library(ggthemes)
-library(viridis)
 loadfonts()
 
 #Load in data
 
-data <- read_csv("data/temp_resid.csv")
+data <- read_csv("data/shape_and_temp.csv")
 
-#Perform type 2 anova 
-temp_aov <-Anova(lm(.resid~pop+day+PC1+PC2+PC3+PC4+PC5+PC6+PC7+PC8+PC9+PC10+PC11+PC12+PC13+PC14+PC15+PC16+PC17+PC18+PC19+PC20+PC21+PC22+PC23+PC24+PC25+PC26+PC27+PC28+PC29+PC30+PC31+PC32+PC33+PC34+ln_area+veins_to_blade+proximal_lobing+distal_lobing, data=data), type=2)
+#Set factor levels for dates so they plot in order
 
-temp_aov <- tidy(temp_aov)
-temp_var <- temp_aov %>% mutate(total_sum=sum(temp_aov$sumsq)) %>% filter(term !="Residuals") %>% dplyr::select(term, total_sum,sumsq, p.value) %>% mutate(var=(sumsq/total_sum)*100) %>% mutate(phenotype="temp") %>% dplyr::select(phenotype, term, var, p.value) 
-
-temp_var %>% filter(p.value <0.05)
-
-pdf("figures/Figure2.pdf",width = 7, height=2)
-temp_var %>% filter(p.value < 0.05) %>% ggplot(aes(y=phenotype, x=fct_reorder(term, desc(var))))+
-  geom_tile(aes(fill=var), color="white", size=1)+
-  geom_text(aes(label=paste(desc(-round(var, digits=2)),"%")), color="black", fontface="bold")+
-  theme_few()+
-  labs(x = NULL, y=NULL) + 
-  theme(axis.text=element_text(size=12, colour="black"),axis.title=element_text(size=14,face="bold", colour="black"),legend.position = "none")+
-  scale_x_discrete(position="top")+
-  scale_fill_viridis(option="inferno",direction=-1,  name="% variance explained",limits=c(0, 2))
+data <- data %>% mutate(day=as.factor(day))
+data <- data %>% mutate(day=fct_relevel(day, "July 19 2018", "August 10 2018","July 24 2019","August 1 2019"))
+  
+pdf("figures/Figure2.pdf", family="Arial",width=8, height=5)
+bg_dat <- data %>% select(time, temp)
+ggplot(data, aes(x=time, y=temp)) +
+  geom_point(data = bg_dat, colour = "grey",alpha=0.6, stroke=0, size=2) +
+  facet_wrap(~as.factor(day))+
+  geom_point(alpha=0.6, stroke=0, size=2)+
+  geom_smooth(method="lm", se=F, size=2, colour="red")+
+  theme_bw()+
+  theme(axis.text=element_text(colour="black", size=12),
+        axis.title=element_text(colour="black", face="bold", size=14),
+        title=element_text(colour="black", face="bold", size=10))+
+  labs(colour = "Date")
 dev.off()
+
+#Run model to get residuals for temperature
+
+#this has to be done for each date based on the temp and the time 
+temp_1 <-  data %>% filter(day=="July 19 2018")
+temp_2 <-  data %>% filter(day=="August 10 2018")
+temp_3 <-  data %>% filter(day=="July 24 2019")
+temp_4 <-  data %>% filter(day=="August 1 2019")
+
+#Number of measurements ranged from 416 to 442
+temp_1_resid <- broom::augment(lm(temp ~ time, data = temp_1), data = temp_1)
+temp_2_resid <- broom::augment(lm(temp ~ time, data = temp_2), data = temp_2)
+temp_3_resid <- broom::augment(lm(temp ~ time, data = temp_3), data = temp_3)
+temp_4_resid <- broom::augment(lm(temp ~ time, data = temp_4), data = temp_4)
+
+#merge back together and save
+temp_resid <- temp_1_resid %>% bind_rows(temp_2_resid,temp_3_resid,temp_4_resid)
+
+write.table(temp_resid, "data/temp_resid.csv", sep=",", row.names = F, col.names = T)
