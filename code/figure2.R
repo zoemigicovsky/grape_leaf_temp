@@ -19,7 +19,7 @@ ggplot(data, aes(x=time, y=temp)) +
   geom_point(data = bg_dat, colour = "grey",alpha=0.6, stroke=0, size=2) +
   facet_wrap(~as.factor(day))+
   geom_point(alpha=0.6, stroke=0, size=2)+
-  geom_smooth(method="lm", se=F, size=2, colour="red")+
+  geom_smooth(method="lm", se=F, size=1.5, colour="red")+
   theme_bw()+
   theme(axis.text=element_text(colour="black", size=12),
         axis.title=element_text(colour="black", face="bold", size=14),
