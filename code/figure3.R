@@ -6,29 +6,44 @@ library(car)
 library(broom)
 library(ggthemes)
 library(viridis)
+library(rmcorr)
+library(weathermetrics)
 loadfonts()
 
 #Load in data
 
 data <- read_csv("data/temp_resid.csv")
 
+#Use rmcorr to check correlation of ln_area and temp residuals
 
-#Perform type 2 anova 
-#the first 20 PCs capture 99.7% of the variance in shape so I will just include those 
-temp_aov <-Anova(lm(.resid~pop+day+PC1+PC2+PC3+PC4+PC5+PC6+PC7+PC8+PC9+PC10+PC11+PC12+PC13+PC14+PC15+PC16+PC17+PC18+PC19+PC20+ln_area+veins_to_blade+proximal_lobing+distal_lobing, data=data), type=2)
+library(rmcorr)
+rmcorr_ln_area <- rmcorr(participant=as.factor(day), measure1=.resid, measure2=ln_area, dataset=data)
 
-temp_aov <- tidy(temp_aov)
-temp_var <- temp_aov %>% mutate(total_sum=sum(temp_aov$sumsq)) %>% filter(term !="Residuals") %>% dplyr::select(term, total_sum,sumsq, p.value) %>% mutate(var=(sumsq/total_sum)*100) %>% mutate(phenotype="temp") %>% dplyr::select(phenotype, term, var, p.value) 
+rmcorr_ln_area$r # -0.1784123
+rmcorr_ln_area$p # 1.516374e-12
+rmcorr_ln_area$CI #-0.2262391 -0.1297273
 
-temp_var %>% filter(p.value <0.05)
+#Set factor levels for dates so they plot in order
 
-pdf("figures/Figure3.pdf",width = 7, height=2)
-temp_var %>% filter(p.value < 0.05) %>% ggplot(aes(y=phenotype, x=fct_reorder(term, desc(var))))+
-  geom_tile(aes(fill=var), color="white", size=1)+
-  geom_text(aes(label=paste(desc(-round(var, digits=2)),"%")), color="black", fontface="bold")+
-  theme_few()+
-  labs(x = NULL, y=NULL) + 
-  theme(axis.text=element_text(size=12, colour="black"),axis.title=element_text(size=14,face="bold", colour="black"),legend.position = "none")+
-  scale_x_discrete(position="top")+
-  scale_fill_viridis(option="inferno",direction=-1,  name="% variance explained",limits=c(0, 2.2))
+data <- data %>% mutate(day=as.factor(day))
+data <- data %>% mutate(day=fct_relevel(day, "July 19 2018", "August 10 2018","July 24 2019","August 1 2019"))
+
+#Colour lines by temperature on day of sampling: July 19 2018 = 27.7, August 10 2018 = 28,July 24 2019 = 34, and August 1 2019 = 26.2
+data <- data %>% mutate(sampling_temp=ifelse(day=="July 19 2018",27.7, ifelse(day=="August 10 2018", 28, ifelse(day=="July 24 2019", 34,26.2)) ))
+
+pdf("figures/Figure4.pdf", family="Arial",width=8, height=6)
+bg_data <- data %>% select(ln_area, .resid)
+ggplot(data, aes(x=ln_area, y=.resid, colour=.fitted)) +
+  geom_point(data = bg_data, colour = "grey",alpha=0.6, stroke=0, size=2) +
+  facet_wrap(~as.factor(day))+
+  geom_point(alpha=0.6, stroke=0, size=2)+
+  geom_smooth(method="lm", se=F, size=1.5,colour="black")+
+  scale_colour_viridis(option="mako", direction=1, begin=0.2, end=0.95)+
+  theme_bw()+
+  theme(axis.text=element_text(colour="black", size=12),
+        axis.title=element_text(colour="black", face="bold", size=14),
+        title=element_text(colour="black", face="bold", size=10))+
+  labs(x = "ln(area)", y="Residuals from temp ~ time")
 dev.off()
+
+
